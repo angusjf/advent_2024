@@ -12,7 +12,7 @@ fn solve(input: []const u8) !u32 {
     const alloc = gpa.allocator();
 
     var lefts = std.ArrayList(u32).init(alloc);
-    var rights = std.ArrayList(u32).init(alloc);
+    var rights = std.AutoHashMap(u32, void).init(alloc);
 
     while (lines.next()) |line| {
         if (line.len == 0) break;
@@ -21,17 +21,15 @@ fn solve(input: []const u8) !u32 {
         const second = try std.fmt.parseInt(u32, line[8..13], 10);
 
         try lefts.append(first);
-        try rights.append(second);
+        try rights.put(second, {});
     }
 
     var sum: u32 = 0;
 
     for (lefts.items) |left| {
         var count: u32 = 0;
-        for (rights.items) |right| {
-            if (left == right) {
-                count += 1;
-            }
+        if (rights.get(left)) |_| {
+            count += 1;
         }
 
         sum += left * count;
