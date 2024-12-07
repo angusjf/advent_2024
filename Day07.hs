@@ -11,6 +11,7 @@ works :: (Int, [Int]) -> Bool
 works (sum, p : parts) = go sum p parts
 
 go sum p [] = sum == p
+go sum p _ | sum < p = False
 go sum p (x : xs) = go sum (p + x) xs || go sum (p * x) xs || go sum (p ||| x) xs
 
 a ||| b = read $ (show a) ++ show b
