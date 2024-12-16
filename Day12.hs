@@ -1,12 +1,14 @@
-import Data.List (intersperse, nub)
+import Data.Function (on)
+import Data.List (groupBy, intersperse, maximumBy, minimumBy, nub, sortBy)
+import Data.Map ((!))
 import Data.Map qualified as M
+import Data.Maybe (catMaybes)
+import Data.Ord (comparing)
 import Data.Set qualified as S
-
-main = readFile "input12.txt" >>= putStrLn . visualize . parse
 
 -- main = readFile "input12.txt" >>= print . solve . parse
 
--- main = readFile "test12.txt" >>= print . solve . parse
+main = readFile "test12.txt" >>= putStrLn . solve . parse
 
 parse = toGrid . lines
 
@@ -15,12 +17,9 @@ toGrid xs = do
   (x, c) <- zip [0 ..] row
   return ((x, y), c)
 
-visualize :: [((Int, Int), Char)] -> String
-visualize points = unlines $ map (\(c, points) -> ("Zone '" ++ [c] ++ "':\n" ++ (unlines $ draw (mx, my) points c))) $ zones (M.fromList points)
-  where
-    (mx, my) = maximum $ map fst points
-
-solve points = sum $ map score $ zones grid
+solve points =
+  -- sum $
+  unlines $ map score $ zones grid
   where
     grid = M.fromList points
 
@@ -34,17 +33,6 @@ zones grid =
 
 neighbors (x, y) = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
 
-draw (mx, my) grid c =
-  ((('+' :) $ take mx $ repeat '-') ++ "+")
-    : [ '|'
-          : [ if S.member (x, y) grid then c else ' '
-            | x <- [0 .. mx - 1]
-            ]
-          ++ ['|']
-      | y <- [0 .. my - 1]
-      ]
-    ++ [(('+' :) $ take mx $ repeat '-') ++ "+"]
-
 zone :: M.Map (Int, Int) Char -> ((Int, Int), Char) -> S.Set (Int, Int)
 zone grid (pos, c) = allAdjacent (S.singleton pos) (S.fromList $ map fst $ filter ((== c) . snd) $ M.toList grid)
 
@@ -56,12 +44,38 @@ allAdjacent ok toCheck =
 
 isAdjacentToAny ok pos = any (\pos -> S.member pos ok) (neighbors pos)
 
-score (c, points) =
-  -- (c, length points, perimeter points)
-  (length points) * (perimeter points)
+draw (mx, my) grid =
+  ((('+' :) $ take mx $ repeat '-') ++ "+")
+    : [ '|'
+          : [ if S.member (x, y) grid then '#' else ' '
+            | x <- [-1 .. mx - 1]
+            ]
+          ++ ['|']
+      | y <- [-2 .. my - 2]
+      ]
+    ++ [(('+' :) $ take mx $ repeat '-') ++ "+"]
 
-perimeter :: S.Set (Int, Int) -> Int
-perimeter points = sum $ map (contrib points) (S.toList points)
+-- score :: (Char, S.Set (Int, Int)) -> ?
+score (c, points) = [c] ++ ":\n" ++ (unlines $ draw (11, 11) $ nEdges points)
 
-contrib :: S.Set (Int, Int) -> (Int, Int) -> Int
-contrib points point = length $ filter (\n -> S.notMember n points) (neighbors point)
+-- (c, length points, nEdges points)
+
+nEdges points = convolve2x2Map (10, 10) leftEdgesKernel points
+
+leftEdgesKernel = S.fromList [(0, 0), (1, 0)]
+
+convolve2x2Map :: (Int, Int) -> S.Set (Int, Int) -> S.Set (Int, Int) -> S.Set (Int, Int)
+convolve2x2Map (maxX, maxY) kernel matrix =
+  S.fromList $
+    catMaybes
+      [ if any
+          id
+          [ S.member (kx, ky) kernel && S.member (x + kx, y + ky) matrix
+          | kx <- [0, 1],
+            ky <- [0, 1]
+          ]
+          then Just (x, y)
+          else Nothing
+      | x <- [-2 .. maxX + 1],
+        y <- [-2 .. maxY + 1]
+      ]
