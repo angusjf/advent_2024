@@ -1,5 +1,4 @@
-import Data.Bits (xor, (.|.))
-import Debug.Trace (trace)
+import Data.Bits (shift, xor)
 
 -- main = readFile "test17.txt" >>= print . solve . parse
 
@@ -10,30 +9,55 @@ parse input = ((read a, read b, read c), map read $ words $ map (\c -> if c == '
   where
     [a, b, c, _, program] = map (drop 1 . snd . break (== ':')) $ lines input
 
-combo (a, b, c) operand =
-  case operand of
-    4 -> a
-    5 -> b
-    6 -> c
-    7 -> error "combo 7 is reserved"
-    n -> n
+tooHigh = 178388203060038
 
-solve :: ((Int, Int, Int), [Int]) -> [Int]
-solve (reg, ins) = run reg ins 0
+toooLow = 140737488355328
 
-run :: (Int, Int, Int) -> [Int] -> Int -> [Int]
-run reg@(a, b, c) prog ins =
-  case drop ins prog of
-    [] -> []
-    (opcode : operand : _) ->
-      case opcode of
-        0 -> run (a `div` (2 ^ combo reg operand), b, c) prog (ins + 2)
-        1 -> run (a, b `xor` operand, c) prog (ins + 2)
-        2 -> run (a, (combo reg operand) `mod` 8, c) prog (ins + 2)
-        3 -> case a of
-          0 -> run reg prog (ins + 2)
-          _ -> run reg prog operand
-        4 -> run (a, b `xor` c, c) prog (ins + 2)
-        5 -> ((combo reg operand) `mod` 8) : run reg prog (ins + 2)
-        6 -> run (a, a `div` (2 ^ combo reg operand), c) prog (ins + 2)
-        7 -> run (a, b, a `div` (2 ^ combo reg operand)) prog (ins + 2)
+orWyArd = 214237055846652
+
+desired = [2, 4, 1, 1, 7, 5, 1, 5, 0, 3, 4, 3, 5, 5, 3, 0]
+
+solve _ = output tooHigh
+
+n =
+  let a0 = 6
+      a1 = 0
+      a2 = 5
+      a3 = 5
+      a4 = 3
+      a5 = 11
+      a6 = 5
+      a7 = 11
+      a8 = 4
+      a9 = 7
+      a10 = 0
+      a11 = 7
+      a12 = 11
+      a13 = 11
+      a14 = 7
+      a15 = 4
+
+      ap n x = (8 ^ n) * x
+   in sum
+        [ ap 0 a0,
+          ap 1 a1,
+          ap 2 a2,
+          ap 3 a3,
+          ap 4 a4,
+          ap 5 a5,
+          ap 6 a6,
+          ap 7 a7,
+          ap 8 a8,
+          ap 9 a9,
+          ap 10 a10,
+          ap 11 a11,
+          ap 12 a12,
+          ap 13 a13,
+          ap 14 a14,
+          ap 15 a15
+        ]
+
+output a | a `div` 8 == 0 = f a : []
+output a = f a : output (a `div` 8)
+
+f a = a `mod` 8 `xor` 1 `xor` 5 `xor` (a `div` (1 `shift` (a `mod` 8 `xor` 1))) `mod` 8

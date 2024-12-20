@@ -1,11 +1,12 @@
 import Data.List (find)
 import Data.Map qualified as M
+import Data.Maybe
 
--- main = readFile "test15.txt" >>= print . solve . parse
+main = readFile "test15.txt" >>= print . solve . parse
 
 -- main = readFile "test15.txt" >>= putStrLn . vis . parse
 
-main = readFile "input15.txt" >>= print . solve . parse
+-- main = readFile "input15.txt" >>= print . solve . parse
 
 dir '^' = (0, -1)
 dir '>' = (1, 0)
@@ -61,13 +62,37 @@ step (warehouse, pos) dir =
         '.' -> (warehouse, pos')
         '@' -> (warehouse, pos')
         'O' ->
-          case findEmptySpace warehouse dir pos' of
-            Nothing -> (warehouse, pos)
-            Just empty -> (M.insert empty 'O' (M.insert pos' '.' warehouse), pos')
+          case dir of
+            (0, 1) ->
+              case pushLeft warehouse pos of
+                Nothing -> (warehouse, pos)
+                Just warehouse' -> (warehouse', left pos)
 
-findEmptySpace warehouse dir pos =
-  case warehouse M.! pos of
-    '.' -> Just pos
-    '@' -> Just pos
+left (x, y) = (x - 1, y)
+
+swap :: (Ord k) => k -> k -> M.Map k a -> M.Map k a
+swap p1 p2 dict = M.insert p2 (dict M.! p1) (M.insert p1 (dict M.! p2) dict)
+
+pushLeft :: M.Map (Int, Int) Char -> (Int, Int) -> Maybe (M.Map (Int, Int) Char)
+pushLeft warehouse (x, y) =
+  case warehouse M.! (x - 1, y) of
+    '.' -> Just (swap (x, y) (x - 1, y) warehouse)
+    ']' ->
+      pushLeft warehouse (x - 2, y) >>= \warehouse' -> Just (swap (x, y) (x - 1, y) warehouse')
+    '#' ->
+      Nothing
+
+pushUp :: M.Map (Int, Int) Char -> (Int, Int) -> Maybe (M.Map (Int, Int) Char)
+pushUp warehouse (x, y) =
+  case warehouse M.! (x, y - 1) of
+    '.' -> Just (swap (x, y) (x, y - 1) warehouse)
+    ']' ->
+      pushUp warehouse (x - 2, y) >>= \warehouse' -> Just (swap (x, y) (x - 1, y) warehouse')
     '#' -> Nothing
-    'O' -> findEmptySpace warehouse dir (move dir pos)
+
+-- findEmptySpace warehouse dir pos =
+--   case warehouse M.! pos of
+--     '.' -> Just pos
+--     '@' -> Just pos
+--     '#' -> Nothing
+--     'O' -> findEmptySpace warehouse dir (move dir pos)

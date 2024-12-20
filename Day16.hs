@@ -1,14 +1,11 @@
 import Data.List (find)
 import Data.Map qualified as M
-import Data.Maybe (isNothing)
+import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Data.Set qualified as S
 import Debug.Trace (trace)
 
--- main = readFile "test16.txt" >>= putStrLn . unlines . draw (15, 15) . S.fromList . map snd . solve . parse
--- main = readFile "input16.txt" >>= print . solve . parse
-main = readFile "test16.txt" >>= print . solve . parse
-
--- main = readFile "debug16.txt" >>= print . solve . parse
+-- main = readFile "test16.txt" >>= print . solve . parse
+main = readFile "input20.txt" >>= print . solve . parse
 
 parse input = toGrid (lines input)
 
@@ -16,17 +13,6 @@ toGrid xs = do
   (y, row) <- zip [0 ..] xs
   (x, c) <- zip [0 ..] row
   return ((x, y), c)
-
--- draw (mx, my) grid =
---   ((('+' :) $ take mx $ repeat '-') ++ "+")
---     : [ '|'
---           : [ if S.member (x, y) grid then '>' else '.'
---             | x <- [0 .. mx - 1]
---             ]
---           ++ ['|']
---       | y <- [0 .. my - 1]
---       ]
---     ++ [(('+' :) $ take mx $ repeat '-') ++ "+"]
 
 data Dir = N | E | S | W deriving (Eq, Ord, Show)
 
@@ -42,9 +28,9 @@ cw W = N
 
 ccw = cw . cw . cw
 
-solve :: [((Int, Int), Char)] -> Int
-solve input = (M.mapKeysWith min snd $ dijkstra step (E, start)) M.! end
+solve input = reconstruct pathL end
   where
+    (distL, pathL) = dijkstraWithPaths step (E, start)
     Just (start, _) = find ((== 'S') . snd) input
     Just (end, _) = find ((== 'E') . snd) input
     walls = S.fromList $ map fst $ filter ((== '#') . snd) input
@@ -61,3 +47,39 @@ dijkstra step start = go (S.singleton (0, start)) M.empty
         if M.member n d
           then go q' d
           else go (foldr S.insert q' [(dist + w, x) | (x, w) <- step n, x `M.notMember` d]) (M.insert n dist d)
+
+dijkstraWithPaths :: (Ord a) => (a -> [(a, Int)]) -> a -> (M.Map a Int, M.Map a a)
+dijkstraWithPaths step start = go (S.singleton (0, start)) M.empty M.empty
+  where
+    go q d p = case S.minView q of
+      Nothing -> (d, p)
+      Just ((dist, n), q') ->
+        if M.member n d
+          then go q' d p
+          else
+            go
+              ( foldr
+                  S.insert
+                  q'
+                  [(dist + w, x) | (x, w) <- step n, M.notMember x d]
+              )
+              (M.insert n dist d)
+              ( foldl'
+                  ( \acc (x, w) ->
+                      if M.notMember x d
+                        then M.insert x n acc
+                        else acc
+                  )
+                  p
+                  (step n)
+              )
+
+reconstruct :: M.Map (Dir, (Int, Int)) (Dir, (Int, Int)) -> (Int, Int) -> [[(Int, Int)]]
+reconstruct pathsL from = reconstruct' f [[from]]
+  where
+    f x = fromMaybe [] $ M.lookup x (M.foldrWithKey (\(_, pos) (_, v) acc -> M.insertWith (++) pos [v] acc) M.empty pathsL)
+
+reconstruct' :: (a -> [a]) -> [[a]] -> [[a]]
+reconstruct' back protopaths = concatMap kickback protopaths
+  where
+    kickback protopath = map (\b -> b : protopath) (back (head protopath))
