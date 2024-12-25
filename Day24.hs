@@ -17,7 +17,10 @@ swaps =
     -- ("jcb", "ndw") -- 3
   ]
 
--- ggn,grm,rmn,twr,whq,z10,z32,z39
+-- ggn,grm,rmn,twr,whq,z10,z32,z39 X
+--
+-- dnw,ggn,grm,jcb,twr,z10,z32,z39 2
+-- ggn,grm,jcb,ndw,twr,z10,z32,z39 3
 
 answer = intercalate "," $ sort $ map fst swaps ++ map snd swaps
 
