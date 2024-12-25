@@ -54,11 +54,10 @@ step (warehouse, pos) dir =
 push pos dir warehouse =
   let pos' = move dir pos
    in swap pos pos'
-        <$> case M.lookup pos' warehouse of
-          Just '.' -> Just warehouse
-          Just '#' -> Nothing
-          Nothing -> Nothing
-          Just c ->
+        <$> case warehouse M.! pos' of
+          '.' -> Just warehouse
+          '#' -> Nothing
+          c ->
             case dir of
               (_, 0) -> push pos' dir warehouse
               (0, _) ->
