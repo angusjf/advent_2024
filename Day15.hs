@@ -4,12 +4,10 @@ import Data.Maybe
 
 main = readFile "input15.txt" >>= print . solve . parse
 
-c2dir '^' = (0, -1)
-c2dir '>' = (1, 0)
-c2dir '<' = (-1, 0)
-c2dir 'v' = (0, 1)
-
-move (dx, dy) (x, y) = (x + dx, y + dy)
+move '^' (x, y) = (x, y - 1)
+move '>' (x, y) = (x + 1, 0)
+move '<' (x, y) = (x - 1, 0)
+move 'v' (x, y) = (x, y + 1)
 
 swap p1 p2 dict =
   M.insert p2 (dict M.! p1) $
@@ -39,8 +37,7 @@ solve (warehouse, ins, start) =
     . filter ((== '[') . snd)
     . M.toList
     . fst
-    . foldl step (warehouse, start)
-    $ map c2dir ins
+    $ foldl step (warehouse, start) ins
 
 step (warehouse, pos) dir =
   fromMaybe (warehouse, pos) $
@@ -58,9 +55,7 @@ push pos dir warehouse =
           '.' -> Just warehouse
           '#' -> Nothing
           c ->
-            case dir of
-              (_, 0) -> push pos' dir warehouse
-              (0, _) ->
-                push pos' dir warehouse
-                  >>= let otherHalf = c2dir $ case c of ']' -> '<'; '[' -> '>'
-                       in push (move otherHalf pos') dir
+            push pos' dir warehouse
+              >>= if dir `elem` "<>"
+                then return
+                else push (move (case c of ']' -> '<'; '[' -> '>') pos') dir
