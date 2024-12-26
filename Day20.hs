@@ -4,12 +4,13 @@ import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Debug.Trace (trace)
 
-main = readFile "test20.txt" >>= print . solve . parse
+(main, msMin, cheats) =
+  -- (readFile "test20.txt" >>= print . tally . solve . parse, 50, 20)
 
--- main = readFile "input20.txt" >>= print . solve . parse
+  (readFile "input20.txt" >>= print . length . solve . parse, 100, 20)
 
-parse :: String -> ((Int, Int), (Int, Int), [(Int, Int)])
-parse input = (start, end, map fst $ filter ((== '#') . snd) grid)
+parse :: String -> ((Int, Int), (Int, Int), S.Set (Int, Int))
+parse input = (start, end, S.fromList $ map fst $ filter ((== '#') . snd) grid)
   where
     grid = toGrid (lines input)
     Just (start, 'S') = find ((== 'S') . snd) grid
@@ -20,72 +21,35 @@ toGrid xs = do
   (x, c) <- zip [0 ..] row
   return ((x, y), c)
 
-solve (start, end, allWalls) = path prevs (end, Used)
-  where
-    (base, _) = nocheat start end (S.fromList allWalls)
-    distsAndPrevs = shortestPath start end allWalls
-    dists = M.map fst distsAndPrevs
-    prevs = M.map snd distsAndPrevs
+tally :: (Ord x) => [x] -> [(x, Int)]
+tally = M.toList . foldl (\m k -> M.insertWith (+) k 1 m) M.empty
 
-path :: (Ord a) => M.Map a (Maybe a) -> a -> [a]
-path prevs x =
-  x
-    : case prevs M.! x of
-      Just x -> path prevs x
-      Nothing -> []
+solve (start :: (Int, Int), end :: (Int, Int), walls :: S.Set (Int, Int)) =
+  let path = run start (== end) step S.empty -- length: 85
+      step (x, y) = filter (`S.notMember` walls) $ [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+   in path `seq`
+        [ savings
+        | (start, i) <- zip path [0 ..],
+          (end, j) <- zip path [0 ..],
+          j > i,
+          let skipped = j - i,
+          let used = dist start end,
+          let savings = skipped - used,
+          used <= cheats,
+          savings >= msMin
+        ]
 
-data Super = Unused | NoClip Int | Used deriving (Eq, Ord, Show)
+dist (a, b) (c, d) = abs (a - c) + abs (b - d)
 
-shortestPath start end allWalls =
-  dijkstra
-    ( \((x, y), super) ->
-        case super of
-          Unused ->
-            (((x, y), NoClip 2), 0)
-              : ( map (,1) $
-                    map (,Unused) $
-                      filter (`S.notMember` exterior) $
-                        filter (`S.notMember` interior) $
-                          [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
-                )
-          NoClip 0 -> [(((x, y), Used), 0)]
-          NoClip n ->
-            (((x, y), Used), 0)
-              : ( map (,1) $
-                    map (,NoClip (n - 1)) $
-                      filter (`S.notMember` exterior) $
-                        [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
-                )
-          Used ->
-            map (,1) $
-              map (,Used) $
-                filter (`S.notMember` exterior) $
-                  filter (`S.notMember` interior) $
-                    [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
-    )
-    (start, Unused)
-  where
-    exterior = S.fromList ext
-    interior = S.fromList int
-    (ext, int) = partition (\(x, y) -> x == 0 || x == mx || y == 0 || y == my) allWalls
-    mx = maximum $ map fst allWalls
-    my = maximum $ map snd allWalls
+run :: (Ord a, Show a) => a -> (a -> Bool) -> (a -> [a]) -> S.Set a -> [a]
+run a done step seen =
+  a
+    : if done a
+      then []
+      else run (unvisted (step a) seen) done step (S.insert a seen)
 
-nocheat start end walls =
-  dijkstra
-    (\(x, y) -> map (,1) $ filter (`S.notMember` walls) [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
-    start
-    M.! end
-
-dijkstra :: (Ord a) => (a -> [(a, Int)]) -> a -> M.Map a (Int, Maybe a)
-dijkstra step start = go (S.singleton (0, start, Nothing)) M.empty
-  where
-    go q d = case S.minView q of
-      Nothing -> d
-      Just ((dist, n, mPrev), q') ->
-        if M.member n d
-          then go q' d
-          else
-            go
-              (foldr S.insert q' [(dist + w, x, Just n) | (x, w) <- step n, x `M.notMember` d])
-              (M.insert n (dist, mPrev) d)
+unvisted :: (Ord a, Show a) => [a] -> S.Set a -> a
+unvisted xs s =
+  case filter (`S.notMember` s) xs of
+    [a] -> a
+    z -> error $ show z
