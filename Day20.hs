@@ -1,8 +1,10 @@
-import Data.List (find, nub)
+import Data.List (find, nub, partition)
 import Data.Map qualified as M
 import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Debug.Trace (trace)
+
+-- main = readFile "test20.txt" >>= print . solve . parse
 
 main = readFile "input20.txt" >>= print . solve . parse
 
@@ -21,17 +23,29 @@ toGrid xs = do
 tally :: (Ord x) => [x] -> [(x, Int)]
 tally = M.toList . foldl (\m k -> M.insertWith (+) k 1 m) M.empty
 
-solve (start, end, allWalls) = shortestPath start end (S.fromList allWalls)
-
-shortestPath start end walls = flood start (== end) (\(x, y) -> filter (`S.notMember` walls) [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
-
-flood :: (Ord a) => a -> (a -> Bool) -> (a -> [a]) -> S.Set a
-flood seed cond step = go (Seq.singleton seed) S.empty
+-- solve :: ((Int, Int), (Int, Int), [(Int, Int)]) -> [Int]
+solve (start, end, allWalls) = filter (>= 100) $ map ((-) total) $ map (shortestPath start end . S.fromList) (map (++ exterior) $ remove1 interior)
   where
-    go (current Seq.:<| queue) visited
-      | cond current = visited
-      | current `S.member` visited = go queue visited
-      | otherwise =
-          let neighbors = filter (`S.notMember` visited) (step current)
-              newQueue = queue Seq.>< Seq.fromList neighbors
-           in go newQueue (S.insert current visited)
+    (exterior, interior) = partition (\(x, y) -> x == 0 || x == mx || y == 0 || y == my) allWalls
+    mx = maximum $ map fst allWalls
+    my = maximum $ map snd allWalls
+    total = shortestPath start end (S.fromList allWalls)
+
+remove1 (x : xs) = xs : (map (x :) (remove1 xs))
+remove1 [] = []
+
+shortestPath start end walls =
+  dijkstra
+    (\(x, y) -> map (,1) $ filter (`S.notMember` walls) [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
+    start
+    M.! end
+
+dijkstra :: (Ord a) => (a -> [(a, Int)]) -> a -> M.Map a Int
+dijkstra step start = go (S.singleton (0, start)) M.empty
+  where
+    go q d = case S.minView q of
+      Nothing -> d
+      Just ((dist, n), q') ->
+        if M.member n d
+          then go q' d
+          else go (foldr S.insert q' [(dist + w, x) | (x, w) <- step n, x `M.notMember` d]) (M.insert n dist d)
