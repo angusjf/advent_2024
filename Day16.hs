@@ -1,13 +1,11 @@
-import Data.Function (on)
-import Data.List (find, minimumBy)
+import Data.List (find)
 import Data.Map qualified as M
-import Data.Maybe (catMaybes, fromMaybe, isNothing, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Data.Set qualified as S
 import Debug.Trace (trace)
 
-main = readFile "test16.txt" >>= print . solve . parse
-
--- main = readFile "input20.txt" >>= print . solve . parse
+-- main = readFile "test16.txt" >>= print . solve . parse
+main = readFile "input16.txt" >>= print . solve . parse
 
 parse input = toGrid (lines input)
 
@@ -23,8 +21,6 @@ move E (x, y) = (x + 1, y)
 move S (x, y) = (x, y + 1)
 move W (x, y) = (x - 1, y)
 
-rev dir = move (cw $ cw dir)
-
 cw N = E
 cw E = S
 cw S = W
@@ -32,20 +28,14 @@ cw W = N
 
 ccw = cw . cw . cw
 
-solve input = dijkstra step (E, start)
+solve input = dijkstra step (E, start) M.! (N, end)
   where
     Just (start, _) = find ((== 'S') . snd) input
     Just (end, _) = find ((== 'E') . snd) input
     walls = S.fromList $ map fst $ filter ((== '#') . snd) input
 
     step :: (Dir, (Int, Int)) -> [((Dir, (Int, Int)), Int)]
-    step (dir, pos) =
-      filter
-        ((`S.notMember` walls) . snd . fst)
-        [ ((dir, move dir pos), 1),
-          ((cw dir, pos), 1000),
-          ((ccw dir, pos), 1000)
-        ]
+    step (dir, pos) = filter ((`S.notMember` walls) . snd . fst) [((dir, move dir pos), 1), ((cw dir, pos), 1000), ((ccw dir, pos), 1000)]
 
 dijkstra :: (Ord a) => (a -> [(a, Int)]) -> a -> M.Map a Int
 dijkstra step start = go (S.singleton (0, start)) M.empty
@@ -55,11 +45,4 @@ dijkstra step start = go (S.singleton (0, start)) M.empty
       Just ((dist, n), q') ->
         if M.member n d
           then go q' d
-          else
-            go
-              ( foldr
-                  S.insert
-                  q'
-                  [(dist + w, x) | (x, w) <- step n, x `M.notMember` d]
-              )
-              (M.insert n dist d)
+          else go (foldr S.insert q' [(dist + w, x) | (x, w) <- step n, x `M.notMember` d]) (M.insert n dist d)
