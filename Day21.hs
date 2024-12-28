@@ -3,31 +3,28 @@ import Data.Function (on)
 import Data.List (minimumBy, nub, permutations, sort)
 import Data.Set qualified as S
 
--- -- main = readFile "input21.txt" >>= print . solve . lines
-main = readFile "test21.txt" >>= print . solve . lines
+main = readFile "input21.txt" >>= print . solve . lines
 
-solve = map press
+-- main = readFile "test21.txt" >>= print . solve . lines
 
-press code =
+solve = sum . map (\code -> length (press code) * read (filter isNumber code))
+
+longest = minimumBy (compare `on` length)
+
+press =
   concatMap
-    ( \numcode_part_options ->
-        minimumBy (compare `on` length) $
-          S.map
-            ( \numcode_option ->
-                concatMap
-                  ( \arrowcode_part_option ->
-                      minimumBy (compare `on` length) $
-                        S.map
-                          (\arrowcode_option_part -> concat $ getCode' arrowpad arrowcode_option_part)
-                          arrowcode_part_option
-                  )
-                  (getCodeOptions arrowpad numcode_option)
-            )
-            numcode_part_options
+    ( longest
+        . S.map
+          ( concatMap
+              ( longest
+                  . S.map (concat . getCode' arrowpad)
+              )
+              . getCodeOptions arrowpad arrowpadvalid
+          )
     )
-    (getCodeOptions numberpad code)
+    . getCodeOptions numberpad numberpadvalid
 
-getCodeOptions f code = zipWith (\a b -> arrowstr $ diff (f a) (f b)) ('A' : code) code
+getCodeOptions f valid code = zipWith (\a b -> S.filter (valid (f a) (f b)) $ arrowstr $ diff (f a) (f b)) ('A' : code) code
 
 getCode' f code = zipWith (\a b -> arrowstr' $ diff (f a) (f b)) ('A' : code) code
 
@@ -36,6 +33,24 @@ diff (x1, y1) (x2, y2) = (x2 - x1, y2 - y1)
 arrowstr (dx, dy) = S.map (++ "A") $ S.fromList $ permutations $ concat [rep dx '>', rep (-dy) '^', rep (-dx) '<', rep dy 'v']
   where
     rep n c = take n (repeat c)
+
+applyArrow :: (Int, Int) -> Char -> (Int, Int)
+applyArrow (x, y) '>' = (x + 1, y)
+applyArrow (x, y) '<' = (x - 1, y)
+applyArrow (x, y) '^' = (x, y - 1)
+applyArrow (x, y) 'v' = (x, y + 1)
+
+numberpadvalid :: (Int, Int) -> (Int, Int) -> String -> Bool
+numberpadvalid from to "A" = True
+numberpadvalid from to (x : xs) =
+  let new = applyArrow from x
+   in new /= (0, 3) && numberpadvalid new to xs
+
+arrowpadvalid :: (Int, Int) -> (Int, Int) -> String -> Bool
+arrowpadvalid from to "A" = True
+arrowpadvalid from to (x : xs) =
+  let new = applyArrow from x
+   in new /= (0, 0) && arrowpadvalid new to xs
 
 arrowstr' (dx, dy) = concat [rep dx '>', rep (-dy) '^', rep (-dx) '<', rep dy 'v', "A"]
   where
@@ -58,32 +73,3 @@ numberpad '7' = (0, 0)
 numberpad '8' = (1, 0)
 numberpad '9' = (2, 0)
 numberpad 'A' = (2, 3)
--- 029A
--- <A^ A> ^^A vvvA
-
--- <A
--- -> v<<A
--- -> >>^A
---
-
--- ^ A
---  -> <A
---  -> >A
---
---   >^^A
---
---   vvvA
---
---
---   vA
---   <^A
---   A
---   >A
---   <vA
---   A
---   A
---   >^A
---
---
---
---   <vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A
