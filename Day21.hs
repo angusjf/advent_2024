@@ -1,37 +1,19 @@
-import Control.Monad
 import Control.Monad.State
 import Data.Char (isNumber)
-import Data.Foldable
-import Data.Function (on)
-import Data.List (minimumBy, nub, permutations, sort)
+import Data.List (permutations)
 import Data.Map qualified as Map
-import Data.Set qualified as S
-import Debug.Trace (trace)
 
 main = readFile "input21.txt" >>= print . solve . lines
 
 solve = sum . map (\code -> press code * read (filter isNumber code))
 
 press :: String -> Int
-press code = fst $ runState (bestcode 0 code) Map.empty
+press code = fst $ runState (bestcode 26 code) Map.empty
 
-type Cache = Map.Map (String, Int) Int
+functions = (take 25 $ repeat getCodeA) ++ [getCodeN]
 
-smap :: (String -> State Cache Int) -> S.Set String -> State Cache (S.Set Int)
-smap f xs = S.fromList <$> mmap f (S.toList xs)
-
-mmap :: (String -> State Cache Int) -> [String] -> State Cache [Int]
-mmap f [] = return []
-mmap f (x : xs) =
-  do
-    x' <- f x
-    (x' :) <$> mmap f xs
-
-functions :: [String -> [S.Set String]]
-functions = getCodeN : (take 25 $ repeat getCodeA)
-
-bestcode :: Int -> String -> State Cache Int
-bestcode 26 = return . length
+bestcode :: Int -> String -> State (Map.Map (String, Int) Int) Int
+bestcode 0 = return . length
 bestcode n =
   \input ->
     do
@@ -40,22 +22,22 @@ bestcode n =
         Just hit -> return hit
         Nothing ->
           do
-            let all_options = (functions !! n) input
-            res <- sum <$> mapM (\w -> minimum <$> smap (bestcode (n + 1)) w) all_options
+            let all_options = (functions !! (n - 1)) input
+            res <- sum <$> mapM (\w -> minimum <$> traverse (bestcode (n - 1)) w) all_options
             modify (Map.insert (input, n) res)
             return res
 
-getCodeA :: String -> [S.Set String]
+getCodeA :: String -> [[String]]
 getCodeA = getCodeOptions arrowpad arrowpadvalid
 
-getCodeN :: String -> [S.Set String]
+getCodeN :: String -> [[String]]
 getCodeN = getCodeOptions numberpad numberpadvalid
 
-getCodeOptions f valid code = zipWith (\a b -> S.filter (valid (f a) (f b)) $ arrowstr $ diff (f a) (f b)) ('A' : code) code
+getCodeOptions f valid code = zipWith (\a b -> filter (valid (f a) (f b)) $ arrowstr $ diff (f a) (f b)) ('A' : code) code
 
 diff (x1, y1) (x2, y2) = (x2 - x1, y2 - y1)
 
-arrowstr (dx, dy) = S.map (++ "A") $ S.fromList $ permutations $ concat [rep dx '>', rep (-dy) '^', rep (-dx) '<', rep dy 'v']
+arrowstr (dx, dy) = map (++ "A") $ permutations $ concat [rep dx '>', rep (-dy) '^', rep (-dx) '<', rep dy 'v']
   where
     rep n c = take n (repeat c)
 
