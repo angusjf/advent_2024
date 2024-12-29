@@ -10,65 +10,57 @@ import Debug.Trace (trace)
 
 main = readFile "input21.txt" >>= print . solve . lines
 
-solve = sum . map (\code -> length (press code) * read (filter isNumber code))
+solve = sum . map (\code -> (press code) * read (filter isNumber code))
 
 longest :: S.Set String -> String
 longest = minimumBy (compare `on` length)
 
-press :: String -> String
+press :: String -> Int
 press code = fst $ runState (press' code) Map.empty
 
-smap :: (String -> State (Map.Map String [S.Set String]) String) -> S.Set String -> State (Map.Map String [S.Set String]) (S.Set String)
+type Cache = Map.Map (String, Int) Int
+
+smap :: (String -> State Cache Int) -> S.Set String -> State Cache (S.Set Int)
 smap f xs = S.fromList <$> mmap f (S.toList xs)
 
-mmap :: (String -> State (Map.Map String [S.Set String]) String) -> [String] -> State (Map.Map String [S.Set String]) [String]
+mmap :: (String -> State Cache Int) -> [String] -> State Cache [Int]
 mmap f [] = return []
 mmap f (x : xs) =
   do
     x' <- f x
     (x' :) <$> mmap f xs
 
-mconcatMap :: (S.Set String -> State (Map.Map String [S.Set String]) String) -> [S.Set String] -> State (Map.Map String [S.Set String]) String
-mconcatMap f xs = concat <$> mapM f xs
+-- mconcatMap :: (S.Set String -> State Cache String) -> [S.Set String] -> State Cache Int
+mconcatMap f xs = sum <$> mapM f xs
 
-ggg [] = return
-ggg (f : fs) =
-  ( \input1 ->
-      f input1
-        >>= ( mconcatMap
-                ( \w ->
-                    longest
-                      <$> smap
-                        (ggg fs)
-                        w
-                )
-            )
-  )
+strlen :: String -> Int
+strlen = length
 
-press' :: String -> State (Map.Map String [S.Set String]) String
-press' code =
-  ggg
-    (getCodeN : (take 2 $ repeat getCodeA))
-    code
+functions :: [String -> State Cache [S.Set String]]
+functions = getCodeN : (take 25 $ repeat getCodeA)
 
-press_ code =
-  let aa = \input -> concatMap (longest . S.map id) $ getCodeA_old input
-      bb = \input -> concatMap (longest . S.map aa) $ getCodeA_old input
-      cc = \input -> concatMap (longest . S.map bb) $ getCodeN_old input
-   in cc code
+bestcode :: Int -> String -> State Cache Int
+bestcode 26 = return . length
+bestcode n =
+  \input ->
+    do
+      cache <- get
+      case Map.lookup (input, n) cache of
+        Just hit -> return hit
+        Nothing ->
+          do
+            all_options <- (functions !! n) input
+            res <- mconcatMap (\w -> minimum <$> smap (bestcode (n + 1)) w) all_options
+            modify (Map.insert (input, n) res)
+            return res
 
-getCodeA :: String -> State (Map.Map String [S.Set String]) [S.Set String]
-getCodeA x =
-  do
-    cache <- get
-    case Map.lookup x cache of
-      Just hit -> return hit
-      Nothing -> do
-        let res = getCodeOptions arrowpad arrowpadvalid x
-        modify (Map.insert x res)
-        return res
+press' :: String -> State Cache Int
+press' code = bestcode 0 code
 
-getCodeN :: String -> State (Map.Map String [S.Set String]) [S.Set String]
+getCodeA :: String -> State Cache [S.Set String]
+getCodeA x = return $ getCodeOptions arrowpad arrowpadvalid x
+
+getCodeN :: String -> State Cache [S.Set String]
 getCodeN x = return $ getCodeOptions numberpad numberpadvalid x
 
 getCodeA_old :: String -> [S.Set String]
