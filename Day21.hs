@@ -1,30 +1,95 @@
+import Control.Monad
+import Control.Monad.State
 import Data.Char (isNumber)
+import Data.Foldable
 import Data.Function (on)
 import Data.List (minimumBy, nub, permutations, sort)
+import Data.Map qualified as Map
 import Data.Set qualified as S
 import Debug.Trace (trace)
 
 main = readFile "input21.txt" >>= print . solve . lines
 
--- main = readFile "test21.txt" >>= print . solve . lines
-
 solve = sum . map (\code -> length (press code) * read (filter isNumber code))
 
+longest :: S.Set String -> String
 longest = minimumBy (compare `on` length)
 
-press =
-  foldr
-    (\f acc -> concatMap (longest . S.map acc) . f)
-    id
-    (getCodeN : (take 2 $ repeat getCodeA))
+press :: String -> String
+press code = fst $ runState (press' code) Map.empty
 
-getCodeA x = getCodeOptions arrowpad arrowpadvalid x
+smap :: (String -> State (Map.Map String [S.Set String]) String) -> S.Set String -> State (Map.Map String [S.Set String]) (S.Set String)
+smap f xs = S.fromList <$> mmap f (S.toList xs)
 
-getCodeN = getCodeOptions numberpad numberpadvalid
+mmap :: (String -> State (Map.Map String [S.Set String]) String) -> [String] -> State (Map.Map String [S.Set String]) [String]
+mmap f [] = return []
+mmap f (x : xs) =
+  do
+    x' <- f x
+    (x' :) <$> mmap f xs
+
+mconcatMap :: (S.Set String -> State (Map.Map String [S.Set String]) String) -> [S.Set String] -> State (Map.Map String [S.Set String]) String
+mconcatMap f xs = concat <$> mapM f xs
+
+press' :: String -> State (Map.Map String [S.Set String]) String
+press' code =
+  ( \input0 ->
+      getCodeN input0
+        >>= mconcatMap
+          ( \w ->
+              longest
+                <$> smap
+                  ( \input1 ->
+                      getCodeA input1
+                        >>= mconcatMap
+                          ( \w ->
+                              longest
+                                <$> smap
+                                  ( \input2 ->
+                                      getCodeA input2
+                                        >>= mconcatMap
+                                          ( \w ->
+                                              longest
+                                                <$> smap
+                                                  return
+                                                  w
+                                          )
+                                  )
+                                  w
+                          )
+                  )
+                  w
+          )
+  )
+    code
+
+press_ code =
+  let aa = \input -> concatMap (longest . S.map id) $ getCodeA_old input
+      bb = \input -> concatMap (longest . S.map aa) $ getCodeA_old input
+      cc = \input -> concatMap (longest . S.map bb) $ getCodeN_old input
+   in cc code
+
+getCodeA :: String -> State (Map.Map String [S.Set String]) [S.Set String]
+getCodeA x =
+  do
+    cache <- get
+    case Map.lookup x cache of
+      Just hit -> return hit
+      Nothing -> do
+        let res = getCodeOptions arrowpad arrowpadvalid x
+        modify (Map.insert x res)
+        return res
+
+getCodeN :: String -> State (Map.Map String [S.Set String]) [S.Set String]
+getCodeN x = return $ getCodeOptions numberpad numberpadvalid x
+
+getCodeA_old :: String -> [S.Set String]
+getCodeA_old x = getCodeOptions arrowpad arrowpadvalid x
+
+getCodeN_old :: String -> [S.Set String]
+getCodeN_old x = getCodeOptions numberpad numberpadvalid x
 
 getCodeOptions f valid code = zipWith (\a b -> S.filter (valid (f a) (f b)) $ arrowstr $ diff (f a) (f b)) ('A' : code) code
-
-getCode' f code = zipWith (\a b -> arrowstr' $ diff (f a) (f b)) ('A' : code) code
 
 diff (x1, y1) (x2, y2) = (x2 - x1, y2 - y1)
 
