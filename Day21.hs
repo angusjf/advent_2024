@@ -31,36 +31,24 @@ mmap f (x : xs) =
 mconcatMap :: (S.Set String -> State (Map.Map String [S.Set String]) String) -> [S.Set String] -> State (Map.Map String [S.Set String]) String
 mconcatMap f xs = concat <$> mapM f xs
 
+ggg [] = return
+ggg (f : fs) =
+  ( \input1 ->
+      f input1
+        >>= ( mconcatMap
+                ( \w ->
+                    longest
+                      <$> smap
+                        (ggg fs)
+                        w
+                )
+            )
+  )
+
 press' :: String -> State (Map.Map String [S.Set String]) String
 press' code =
-  ( \input0 ->
-      getCodeN input0
-        >>= mconcatMap
-          ( \w ->
-              longest
-                <$> smap
-                  ( \input1 ->
-                      getCodeA input1
-                        >>= mconcatMap
-                          ( \w ->
-                              longest
-                                <$> smap
-                                  ( \input2 ->
-                                      getCodeA input2
-                                        >>= mconcatMap
-                                          ( \w ->
-                                              longest
-                                                <$> smap
-                                                  return
-                                                  w
-                                          )
-                                  )
-                                  w
-                          )
-                  )
-                  w
-          )
-  )
+  ggg
+    (getCodeN : (take 2 $ repeat getCodeA))
     code
 
 press_ code =
