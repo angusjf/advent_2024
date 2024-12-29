@@ -2,6 +2,7 @@ import Data.Char (isNumber)
 import Data.Function (on)
 import Data.List (minimumBy, nub, permutations, sort)
 import Data.Set qualified as S
+import Debug.Trace (trace)
 
 main = readFile "input21.txt" >>= print . solve . lines
 
@@ -12,17 +13,14 @@ solve = sum . map (\code -> length (press code) * read (filter isNumber code))
 longest = minimumBy (compare `on` length)
 
 press =
-  concatMap
-    ( longest
-        . S.map
-          ( concatMap
-              ( longest
-                  . S.map (concat . getCode' arrowpad)
-              )
-              . getCodeOptions arrowpad arrowpadvalid
-          )
-    )
-    . getCodeOptions numberpad numberpadvalid
+  foldr
+    (\f acc -> concatMap (longest . S.map acc) . f)
+    id
+    (getCodeN : (take 2 $ repeat getCodeA))
+
+getCodeA x = getCodeOptions arrowpad arrowpadvalid x
+
+getCodeN = getCodeOptions numberpad numberpadvalid
 
 getCodeOptions f valid code = zipWith (\a b -> S.filter (valid (f a) (f b)) $ arrowstr $ diff (f a) (f b)) ('A' : code) code
 
