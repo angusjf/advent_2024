@@ -10,13 +10,10 @@ import Debug.Trace (trace)
 
 main = readFile "input21.txt" >>= print . solve . lines
 
-solve = sum . map (\code -> (press code) * read (filter isNumber code))
-
-longest :: S.Set String -> String
-longest = minimumBy (compare `on` length)
+solve = sum . map (\code -> press code * read (filter isNumber code))
 
 press :: String -> Int
-press code = fst $ runState (press' code) Map.empty
+press code = fst $ runState (bestcode 0 code) Map.empty
 
 type Cache = Map.Map (String, Int) Int
 
@@ -30,13 +27,7 @@ mmap f (x : xs) =
     x' <- f x
     (x' :) <$> mmap f xs
 
--- mconcatMap :: (S.Set String -> State Cache String) -> [S.Set String] -> State Cache Int
-mconcatMap f xs = sum <$> mapM f xs
-
-strlen :: String -> Int
-strlen = length
-
-functions :: [String -> State Cache [S.Set String]]
+functions :: [String -> [S.Set String]]
 functions = getCodeN : (take 25 $ repeat getCodeA)
 
 bestcode :: Int -> String -> State Cache Int
@@ -49,25 +40,16 @@ bestcode n =
         Just hit -> return hit
         Nothing ->
           do
-            all_options <- (functions !! n) input
-            res <- mconcatMap (\w -> minimum <$> smap (bestcode (n + 1)) w) all_options
+            let all_options = (functions !! n) input
+            res <- sum <$> mapM (\w -> minimum <$> smap (bestcode (n + 1)) w) all_options
             modify (Map.insert (input, n) res)
             return res
 
-press' :: String -> State Cache Int
-press' code = bestcode 0 code
+getCodeA :: String -> [S.Set String]
+getCodeA = getCodeOptions arrowpad arrowpadvalid
 
-getCodeA :: String -> State Cache [S.Set String]
-getCodeA x = return $ getCodeOptions arrowpad arrowpadvalid x
-
-getCodeN :: String -> State Cache [S.Set String]
-getCodeN x = return $ getCodeOptions numberpad numberpadvalid x
-
-getCodeA_old :: String -> [S.Set String]
-getCodeA_old x = getCodeOptions arrowpad arrowpadvalid x
-
-getCodeN_old :: String -> [S.Set String]
-getCodeN_old x = getCodeOptions numberpad numberpadvalid x
+getCodeN :: String -> [S.Set String]
+getCodeN = getCodeOptions numberpad numberpadvalid
 
 getCodeOptions f valid code = zipWith (\a b -> S.filter (valid (f a) (f b)) $ arrowstr $ diff (f a) (f b)) ('A' : code) code
 
@@ -94,10 +76,6 @@ arrowpadvalid from to "A" = True
 arrowpadvalid from to (x : xs) =
   let new = applyArrow from x
    in new /= (0, 0) && arrowpadvalid new to xs
-
-arrowstr' (dx, dy) = concat [rep dx '>', rep (-dy) '^', rep (-dx) '<', rep dy 'v', "A"]
-  where
-    rep n c = take n (repeat c)
 
 arrowpad '<' = (0, 1)
 arrowpad '>' = (2, 1)
