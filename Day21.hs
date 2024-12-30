@@ -1,73 +1,74 @@
 import Control.Monad.State
 import Data.Char (isNumber)
-import Data.List (notElem, permutations)
-import Data.Map qualified as Map
+import Data.Function (on)
+import Data.List (notElem, nub, permutations)
+import Data.Map qualified as M
 
 main = readFile "input21.txt" >>= print . solve . lines
 
 solve = sum . map (\code -> press code * read (filter isNumber code))
 
-press :: String -> Int
-press code = fst $ runState (bestcode 26 code) Map.empty
+press code = fst $ runState (shortestCode (26, code)) M.empty
 
-bestcode :: Int -> String -> State (Map.Map (String, Int) Int) Int
-bestcode 0 = return . length
-bestcode n =
-  \input ->
-    do
-      cache <- get
-      case Map.lookup (input, n) cache of
-        Just hit -> return hit
-        Nothing ->
-          do
-            res <-
-              sum
-                <$> mapM
-                  (\w -> minimum <$> traverse (bestcode (n - 1)) w)
-                  (getCode (n - 1) input)
-            modify (Map.insert (input, n) res)
-            return res
+shortestCode (0, input) = return (length input)
+shortestCode (n, input) =
+  sum
+    <$> mapM
+      (fmap minimum . traverse (\c -> memoized shortestCode (n - 1, c)))
+      ( case n of
+          26 -> getAllCodes numpad (0, 3) input
+          _ -> getAllCodes arrowpad (0, 0) input
+      )
 
-getCode 25 = getCodeN
-getCode _ = getCodeA
-
-getCodeA :: String -> [[String]]
-getCodeA = getCodeOptions arrowpad (0, 0)
+getAllCodes padpos illegal code = zipWith (arrowstrs `on` padpos) ('A' : code) code
   where
-    arrowpad '<' = (0, 1)
-    arrowpad '>' = (2, 1)
-    arrowpad 'A' = (2, 0)
-    arrowpad '^' = (1, 0)
-    arrowpad 'v' = (1, 1)
+    arrowstrs (x1, y1) (x2, y2) =
+      map (++ "A") $
+        filter (notElem illegal . scanl move (x1, y1)) $
+          nub $
+            permutations $
+              concatMap
+                (uncurry replicate)
+                [ (x2 - x1, '>'),
+                  (y1 - y2, '^'),
+                  (x1 - x2, '<'),
+                  (y2 - y1, 'v')
+                ]
 
-getCodeN :: String -> [[String]]
-getCodeN = getCodeOptions numpad (0, 3)
-  where
-    numpad '0' = (1, 3)
-    numpad '1' = (0, 2)
-    numpad '2' = (1, 2)
-    numpad '3' = (2, 2)
-    numpad '4' = (0, 1)
-    numpad '5' = (1, 1)
-    numpad '6' = (2, 1)
-    numpad '7' = (0, 0)
-    numpad '8' = (1, 0)
-    numpad '9' = (2, 0)
-    numpad 'A' = (2, 3)
+arrowpad '<' = (0, 1)
+arrowpad '>' = (2, 1)
+arrowpad 'A' = (2, 0)
+arrowpad '^' = (1, 0)
+arrowpad 'v' = (1, 1)
 
-getCodeOptions f illegal code =
-  zipWith
-    (\a b -> filter (notElem illegal . positions (f a) (f b)) $ arrowstr $ diff (f a) (f b))
-    ('A' : code)
-    code
-  where
-    positions from to "A" = []
-    positions from to (x : xs) = let new = applyArrow from x in new : positions new to xs
-    diff (x1, y1) (x2, y2) = (x2 - x1, y2 - y1)
-    arrowstr (dx, dy) = map (++ "A") $ permutations $ concat [replicate dx '>', replicate (-dy) '^', replicate (-dx) '<', replicate dy 'v']
+numpad '0' = (1, 3)
+numpad '1' = (0, 2)
+numpad '2' = (1, 2)
+numpad '3' = (2, 2)
+numpad '4' = (0, 1)
+numpad '5' = (1, 1)
+numpad '6' = (2, 1)
+numpad '7' = (0, 0)
+numpad '8' = (1, 0)
+numpad '9' = (2, 0)
+numpad 'A' = (2, 3)
 
-    applyArrow :: (Int, Int) -> Char -> (Int, Int)
-    applyArrow (x, y) '>' = (x + 1, y)
-    applyArrow (x, y) '<' = (x - 1, y)
-    applyArrow (x, y) '^' = (x, y - 1)
-    applyArrow (x, y) 'v' = (x, y + 1)
+move (x, y) '>' = (x + 1, y)
+move (x, y) '<' = (x - 1, y)
+move (x, y) '^' = (x, y - 1)
+move (x, y) 'v' = (x, y + 1)
+
+-- https://angusjf.com/haskell-memoization
+
+runMemoized :: (x -> State (M.Map x y) y) -> x -> y
+runMemoized f x = evalState (f x) M.empty
+
+memoized :: (Ord x) => (x -> State (M.Map x y) y) -> x -> State (M.Map x y) y
+memoized f x = do
+  cache <- get
+  case M.lookup x cache of
+    Just hit -> return hit
+    Nothing -> do
+      res <- f x
+      modify (M.insert x res)
+      return res
